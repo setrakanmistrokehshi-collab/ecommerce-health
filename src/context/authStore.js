@@ -16,7 +16,7 @@ const useAuthStore = create(
       isHydrated: false,
       isLoading: false,
       error: null,
-      
+
       // Auto-logout state
       autoLogoutTimer: null,
       isAutoLogoutActive: false,
@@ -28,12 +28,15 @@ const useAuthStore = create(
           isAuthenticated: !!user,
         }),
 
-        loginWithGoogle: (data) => {
-        const { accessToken, refreshToken, user } = data;
- 
-        TokenStore.set(accessToken);
-        TokenStore.setRefresh(refreshToken);
- 
+      /**
+       * Google / OAuth callback payload.
+       * Refresh token is set as an httpOnly cookie by the API — do not store it in JS.
+       */
+      loginWithGoogle: (data) => {
+        const { accessToken, user } = data;
+
+        if (accessToken) TokenStore.set(accessToken);
+
         set({
           user,
           isAuthenticated: true,
@@ -42,18 +45,18 @@ const useAuthStore = create(
           error: null,
         });
         void loginPush(user?._id);
- 
+
         return { success: true, user };
       },
- 
+
       login: async (credentials) => {
         set({ isLoading: true, error: null });
 
         try {
           const { data } = await authApi.login(credentials);
 
+          // Access only — refresh is httpOnly cookie from Set-Cookie
           TokenStore.set(data.accessToken);
-          TokenStore.setRefresh(data.refreshToken);
 
           set({
             user: data.user,
@@ -78,26 +81,30 @@ const useAuthStore = create(
           return { success: false, error: msg };
         }
       },
-      
+
       adminLogin: async (credentials) => {
         set({ isLoading: true, error: null });
         try {
           const { data } = await authApi.adminLogin(credentials);
+
           TokenStore.set(data.accessToken);
-          TokenStore.setRefresh(data.refreshToken);
-          set({ 
+
+          set({
             user: data.user,
             isAuthenticated: true,
-            isLoading: false 
+            isHydrated: true,
+            isLoading: false,
+            error: null,
           });
           void loginPush(data.user?._id);
           return {
-            success: true, 
-            user: data.user 
+            success: true,
+            user: data.user,
           };
         } catch (err) {
           const msg =
-            err?.response?.data?.message || 'Login failed. Check your admin credentials.';
+            err?.response?.data?.message ||
+            'Login failed. Check your admin credentials.';
           set({ error: msg, isLoading: false });
           return { success: false, error: msg };
         }
@@ -119,8 +126,7 @@ const useAuthStore = create(
           };
         } catch (err) {
           const msg =
-            err?.response?.data?.message ||
-            'Registration failed.';
+            err?.response?.data?.message || 'Registration failed.';
 
           set({
             error: msg,
@@ -136,19 +142,21 @@ const useAuthStore = create(
 
       logout: async () => {
         void logoutPush();
-        // Remember where the user was
+
         if (typeof window !== 'undefined') {
-    saveReturnPath(window.location.pathname + window.location.search);
-  }
-        try {
-          await authApi.logout();
-        } catch (_) {
-          // ignore
+          saveReturnPath(
+            window.location.pathname + window.location.search
+          );
         }
 
-        // Clear auto-logout timer
-        get().clearAutoLogoutTimer();
+        try {
+          // Server clears httpOnly refresh cookie
+          await authApi.logout();
+        } catch (_) {
+          // ignore network errors — still clear local session
+        }
 
+        get().clearAutoLogoutTimer();
         TokenStore.clear();
 
         set({
@@ -162,36 +170,29 @@ const useAuthStore = create(
         });
       },
 
-      // Start auto-logout timer
       startAutoLogoutTimer: () => {
-        const { isAuthenticated, autoLogoutTimer, clearAutoLogoutTimer } = get();
-        
-        // Only start if user is authenticated and timer not already running
+        const { isAuthenticated, autoLogoutTimer, clearAutoLogoutTimer } =
+          get();
+
         if (!isAuthenticated || autoLogoutTimer) return;
-
-        console.log(`🔄 Auto-logout timer started - will logout in ${AUTO_LOGOUT_MINUTES} minutes`);
-
-        // Clear any existing timer first
+         
         clearAutoLogoutTimer();
 
-        // Set initial state
         set({
           isAutoLogoutActive: true,
           secondsUntilAutoLogout: AUTO_LOGOUT_MINUTES * 60,
         });
 
-        // Start countdown updates
         const countdownInterval = setInterval(() => {
           const { secondsUntilAutoLogout, logout } = get();
-          
+
           if (secondsUntilAutoLogout <= 1) {
-            // Time's up - logout
-            console.log('⏰ Auto-logout triggered - tab inactive too long');
             clearInterval(countdownInterval);
             logout();
-            // Show notification to user
             if (typeof window !== 'undefined') {
-              alert('You have been automatically logged out due to tab inactivity.');
+              alert(
+                'You have been automatically logged out due to tab inactivity.'
+              );
             }
             return;
           }
@@ -201,16 +202,13 @@ const useAuthStore = create(
           });
         }, AUTO_LOGOUT_CONFIG.checkInterval);
 
-        // Store the interval ID
         set({ autoLogoutTimer: countdownInterval });
       },
 
-      // Cancel auto-logout timer
       cancelAutoLogout: () => {
         const { autoLogoutTimer } = get();
-        
+
         if (autoLogoutTimer) {
-          console.log('🔄 Auto-logout cancelled - user returned to tab');
           clearInterval(autoLogoutTimer);
           set({
             autoLogoutTimer: null,
@@ -220,7 +218,6 @@ const useAuthStore = create(
         }
       },
 
-      // Clear auto-logout timer (internal use)
       clearAutoLogoutTimer: () => {
         const { autoLogoutTimer } = get();
         if (autoLogoutTimer) {
@@ -233,7 +230,6 @@ const useAuthStore = create(
         }
       },
 
-      // Get formatted time remaining
       getAutoLogoutTimeRemaining: () => {
         const { secondsUntilAutoLogout } = get();
         const minutes = Math.floor(secondsUntilAutoLogout / 60);
@@ -241,15 +237,19 @@ const useAuthStore = create(
         return `${minutes}:${String(seconds).padStart(2, '0')}`;
       },
 
-      // Validate token and refresh user data
+      /**
+       * Validate access token and load user.
+       * If access is missing/expired, axios interceptor refreshes via cookie.
+       */
       fetchMe: async () => {
-        set({
-          isLoading: true,
-        });
+        set({ isLoading: true });
 
         try {
           const token = TokenStore.get();
 
+          // No access token: still try /me only if you rely on refresh-first flows.
+          // Default: treat as logged out until user logs in again.
+          // Optional: await authApi.refreshToken() then me() if you want silent restore.
           if (!token) {
             set({
               user: null,
@@ -271,7 +271,6 @@ const useAuthStore = create(
           });
           void loginPush(data.user?._id);
         } catch (_) {
-
           saveReturnPath();
           TokenStore.clear();
 
@@ -290,10 +289,9 @@ const useAuthStore = create(
     {
       name: 'winners-auth',
 
-      // Persist only user information
+      // Persist user profile only — never tokens
       partialize: (state) => ({
         user: state.user,
-        // Don't persist auto-logout state
       }),
     }
   )

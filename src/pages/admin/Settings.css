@@ -1,0 +1,142 @@
+/* src/pages/admin/Settings.css
+   Responsive layout for the admin Settings page.
+   Fields use auto-fit grids: they sit side by side when there is room and
+   stack into a single column when there is not, with no fixed breakpoints
+   for the forms themselves. Only the tab strip and page header need media
+   queries (the header rules already live in index.css). */
+
+/* ── Tabs (real buttons: keyboard reachable) ───────────────────── */
+.settings-tab-item {
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: start;
+}
+.settings-tabs .nav-item::before { display: none; }   /* Admin.css side bar clashes with the strip */
+
+@media (max-width: 768px) {
+  /* All six tabs stay visible, wrapped into rows, instead of hiding in a scroller */
+  .settings-tabs {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  .settings-tab-item { width: auto; flex: 1 1 calc(50% - 4px); justify-content: center; }
+}
+@media (max-width: 380px) {
+  .settings-tab-item { flex-basis: 100%; }
+}
+
+/* ── Field grids: side by side when wide, stacked when narrow ───── */
+.set-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+}
+.set-grid--wide { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+.set-grid .form-field { margin-bottom: 0; }
+.set-grid--end { align-items: end; }
+.set-block { margin-bottom: 20px; }
+
+.settings-page .form-field input,
+.settings-page .form-field select { width: 100%; min-width: 0; min-height: 44px; font-size: 16px; }
+
+.form-field .set-hint { font-size: 12px; margin-top: 4px; color: var(--text-muted); }
+.form-field .set-hint--warn { color: var(--warning, #b8860b); }
+
+/* ── Callouts ───────────────────────────────────────────────────── */
+.set-note {
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-inline-start-width: 4px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.set-note--info    { background: rgba(0, 200, 150, .06); border-color: rgba(0, 200, 150, .25); }
+.set-note--warn    { background: rgba(224, 160, 62, .08); border-color: rgba(224, 160, 62, .4); }
+.set-note--danger  { background: rgba(231, 76, 60, .08);  border-color: rgba(231, 76, 60, .35); color: var(--danger); }
+
+/* ── Toggle rows ────────────────────────────────────────────────── */
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.set-row--boxed { border-top: 1px solid var(--border); margin-bottom: 20px; }
+.set-row > :first-child { min-width: 0; }
+.set-row-title { font-size: 13px; font-weight: 600; }
+.set-row-desc  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.set-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 26px;
+  border-radius: 26px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  transition: background .2s;
+}
+.set-switch[aria-checked="true"] { background: var(--accent); }
+.set-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  inset-inline-start: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+  transition: inset-inline-start .2s;
+}
+.set-switch[aria-checked="true"]::after { inset-inline-start: 21px; }
+.set-switch:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── Shipping zones ─────────────────────────────────────────────── */
+.set-section-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+.set-zone {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: var(--surface-2);
+  display: grid;
+  gap: 10px;
+}
+.set-zone-actions { display: flex; }
+.set-zone-actions .btn { color: var(--danger); }
+@media (max-width: 600px) {
+  .set-zone-actions .btn,
+  .set-add .btn { width: 100%; }
+}
+.set-add { display: grid; gap: 10px; margin-bottom: 20px; }
+
+.set-code {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-family: var(--mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+.set-card-title { margin-bottom: 16px; }
