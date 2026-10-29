@@ -12,12 +12,7 @@ import {
 import { trackAddToCart, generateEventId } from '@/lib/metaPixel';
 import PriceTag from '@/components/PriceTag';
 
-// ── ProductCard ───────────────────────────────────────────────────
-// Memoised: product objects come from list state and stay referentially
-// stable between renders, so unrelated parent updates (filters typing,
-// cart badge, etc.) no longer re-render every card.
-// Structure: <article> with a stretched title link; the wishlist and
-// add-to-cart buttons are siblings of the link (no button-inside-anchor).
+
 export const ProductCard = memo(function ProductCard({ product }) {
   const { t } = useTranslation();
   const navigate = useNavigate();

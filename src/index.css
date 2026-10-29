@@ -449,16 +449,31 @@ h1, h2, h3, h4, h5 {
 /* Section title block: heavy rule, then the title — like the head of a
    supplement-facts panel. Used once per section, never decoratively. */
 .sec-head {
-  border-top: 3px solid var(--rule);
-  padding-top: var(--space-4);
+  border-top: none;
+  padding-top: 0;
   margin-bottom: var(--space-8);
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--space-2) var(--space-6);
+  position: relative;
 }
-.sec-head h2 { font-size: var(--fs-2xl); }
+
+.sec-head::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1in;
+  height: 3px;
+  background: var(--rule);
+}
+
+.sec-head h2 {
+  padding-top: var(--space-4);
+}
 .sec-head p { color: var(--text-muted); max-width: var(--measure); }
 .link-action {
   display: inline-flex;
@@ -494,7 +509,7 @@ h1, h2, h3, h4, h5 {
 /* ── Home: hero ──────────────────────────────────────────────────── */
 .hero {
   padding: var(--space-12) 0 var(--space-16);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
 }
 .hero-grid {
   display: grid;

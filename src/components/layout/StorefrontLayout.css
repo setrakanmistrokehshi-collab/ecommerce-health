@@ -6,7 +6,7 @@
   position: sticky; top: 0; z-index: 100;
   background: var(--header-scrolled-bg);
   backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.5px solid var(--border);
 }
 .sf-header-inner { display: flex; align-items: center; min-height: 68px; gap: 16px; }
 .sf-logo { display: flex; align-items: center; gap: 8px; flex-shrink: 0; color: var(--text-heading); }
@@ -17,7 +17,7 @@
 .sf-nav-link {
   display: inline-flex; align-items: center; min-height: 44px;
   font-size: var(--fs-sm); font-weight: 600; color: var(--text-muted);
-  border-bottom: 2px solid transparent;
+  border-bottom: 0.5px solid transparent;
 }
 .sf-nav-link:hover { color: var(--text-heading); }
 .sf-nav-link[aria-current="page"] { color: var(--text-heading); border-bottom-color: var(--text-heading); }
@@ -46,7 +46,7 @@
 
 .sf-mobile-panel {
   display: none; flex-direction: column;
-  background: var(--surface); border-top: 1px solid var(--border);
+  background: var(--surface); border-top: 0.5px solid var(--border);
   padding: 8px 0 16px;
 }
 .sf-mobile-link {
@@ -56,7 +56,7 @@
 }
 .sf-mobile-link:hover { background: var(--bg-elevated); }
 .sf-mobile-link[aria-current="page"] { background: var(--accent-overlay); }
-.sf-mobile-auth { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 14px; }
+.sf-mobile-auth { border-top: 0.5px solid var(--border); margin-top: 8px; padding-top: 14px; }
 
 /* Footer — always-dark surface */
 .sf-footer { background: var(--deep-bg); color: var(--on-dark); padding: var(--space-12) 0 var(--space-6); margin-top: var(--space-16); }
@@ -68,7 +68,7 @@
 .sf-footer-links a { display: inline-flex; align-items: center; min-height: 36px; color: #b9cbc1; font-size: var(--fs-sm); }
 .sf-footer-links a:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
 .sf-footer :focus-visible { outline-color: var(--accent-light); }
-.sf-footer-bottom { border-top: 1px solid rgba(255,255,255,0.14); padding-top: var(--space-5); font-size: var(--fs-sm); color: #9fb3a8; }
+.sf-footer-bottom { border-top: 0.5px solid rgba(255,255,255,0.14); padding-top: var(--space-5); font-size: var(--fs-sm); color: #9fb3a8; }
 
 @media (max-width: 768px) {
   .sf-header-inner { min-height: 60px; gap: 8px; }

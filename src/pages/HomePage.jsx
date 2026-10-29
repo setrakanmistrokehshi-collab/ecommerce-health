@@ -10,8 +10,6 @@ import {
   ShieldPlus, Flame, Pill, Scale, Flower2, HeartPulse, ArrowRight, Box, Check,
 } from 'lucide-react';
 
-// Category ids match the `category` query the products API already accepts.
-// Names and descriptions live in the locale files: categories.<id>.name / .desc
 const CATEGORIES = [
   { id: 'immunity', Icon: ShieldPlus },
   { id: 'energy',   Icon: Flame },
@@ -21,9 +19,6 @@ const CATEGORIES = [
   { id: 'general',  Icon: HeartPulse },
 ];
 
-// CONTENT TO CONFIRM WITH THE OWNER before launch: home.delivery (cities
-// come from the previous homepage copy). Delivery speed, customer counts
-// and "100% natural" were removed: nothing in the codebase backs them up.
 const STEPS = ['step1', 'step2', 'step3'];
 
 const CategoryRow = memo(function CategoryRow({ cat }) {
