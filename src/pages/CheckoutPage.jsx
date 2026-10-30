@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useSearchParams } from 'react-router-dom';
 import useCartStore from '@/context/cartStore';
 import useAuthStore from '@/context/authStore';
-import api, { orders as ordersApi, payments as paymentsApi, shipping as shippingApi } from '@/api/client';
+import { orders as ordersApi, payments as paymentsApi, shipping as shippingApi } from '@/api/client';
 import { Field } from '@/components/ui';
 import { formatNairaAmount as formatNaira } from '@/config/cartMoney';
 import toast from 'react-hot-toast';
@@ -35,10 +35,9 @@ const COUNTRY_OPTIONS = [
   { value: 'United States', label: 'United States' },
   { value: 'United Kingdom', label: 'United Kingdom' },
   { value: 'Canada', label: 'Canada' },
-  { value: 'cameroon', label: 'Cameroon' },
+  { value: 'Cameroon', label: 'Cameroon' },
 ];
 
-// ── FIX: shared normalizers, used consistently by zone matcher and country gate
 function normalizeLocation(value) {
   return String(value ?? '')
     .toLowerCase()
@@ -68,15 +67,11 @@ function getSafeCheckoutUrl(value) {
   }
 }
 
-// ── FIX: parse a raw zone from the backend into a stable internal shape.
-// Handles both the new schema ({country,state,city,price,freeThreshold}) and the
-// legacy shape ({name, price}) so deploys don't require a lockstep frontend/backend.
 function parseZone(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const country = String(raw.country ?? 'Nigeria').trim();
   const state = raw.state ? String(raw.state).trim() : null;
   const city = raw.city ? String(raw.city).trim() : null;
-  // Legacy fallback: if no country/state/city, treat `name` as a state name in Nigeria
   const hasNewShape = raw.country != null || raw.state != null || raw.city != null;
   return {
     name: String(raw.name ?? '').trim(),
@@ -114,12 +109,11 @@ export default function CheckoutPage() {
   const [shippingQuoteLoading, setShippingQuoteLoading] = useState(false);
   const clearCart = useCartStore((state) => state.clear);
 
-  // ── FIX: shipping config now matches the new schema; `loaded` gates the UI
   const [configLoaded, setConfigLoaded] = useState(false);
   const [shippingConfig, setShippingConfig] = useState({
     shippingFee: 0,
     freeThreshold: 0,
-    domesticCap:  { default: 5000 },
+    domesticCap:{ default: 5000 },
     internationalEnabled: false,
     zones: [],
   });
@@ -149,7 +143,6 @@ export default function CheckoutPage() {
   const country = watch('country');
   const isRetryMode = Boolean(retryOrderId);
 
-  // ── Load pending order for retry (unchanged)
   useEffect(() => {
     if (!retryOrderId || !isAuthenticated || restoredRetryId.current === retryOrderId) {
       return undefined;
@@ -191,7 +184,6 @@ export default function CheckoutPage() {
     };
   }, [retryOrderId, isAuthenticated]);
 
-  // ── Derived values
   const hasPwywItems = items.some((item) => item.pwywEnabled);
   const retryCurrency =
     pendingRetryOrder?.currency?.code ??
@@ -218,16 +210,13 @@ export default function CheckoutPage() {
     ? Math.round(subtotal * (promoData.discountPercent / 100))
     : 0;
 
-  // ── FIX: country is a first-class input, both for matching and for
-  // deciding whether international shipping is allowed at all.
   const isNigeria = normalizeCountry(country) === 'nigeria';
   const internationalEnabled = shippingConfig.internationalEnabled === true;
   const hasDeliveryLocation = Boolean(
     normalizeLocation(`${city || ''} ${state || ''}`)
   );
 
-  // ── FIX: zone matcher. Country is a hard gate; more specific wins.
-  // A Lagos-Nigeria zone can never match a Lagos-Portugal address.
+  // Gate only — does not drive fee/total
   const matchedZone = useMemo(() => {
     const zones = shippingConfig.zones || [];
     const nc = normalizeCountry(country);
@@ -251,8 +240,6 @@ export default function CheckoutPage() {
     );
   }, [shippingConfig.zones, country, state, city]);
 
-  // ── FIX: fail closed. No location → unavailable. International needs
-  // the master switch AND an explicit zone. Never "free by default".
   const shippingAvailable = shippingQuote
     ? shippingQuote.available !== false
     : !hasDeliveryLocation
@@ -261,40 +248,26 @@ export default function CheckoutPage() {
         ? true
         : internationalEnabled && Boolean(matchedZone);
 
-  // ── FIX: cap applies to Nigeria only. International zone prices are
-  // charged as-is (the whole point of adding them explicitly).
-  const localRawFee = Number(
-    matchedZone?.price ?? shippingConfig.shippingFee ?? 0
-  );
-  const localCapped = isNigeria
-    ? Math.min(localRawFee, shippingConfig.domesticCap ?? 500000)
-    : localRawFee;
+  // Quote-only summary amounts
+  const quoteAvailable =
+    Boolean(shippingQuote) && shippingQuote.available !== false;
 
-  // ── FIX: per-zone free threshold wins; Nigeria uses global; intl defaults to never-free.
-  const localThreshold =
-    matchedZone?.freeThreshold != null
-      ? Number(matchedZone.freeThreshold)
-      : isNigeria
-        ? Number(shippingConfig.freeThreshold ?? 0)
-        : null;
-
-  const localShipping = shippingAvailable
-    ? localThreshold != null && subtotal - discount >= localThreshold
-      ? 0
-      : localCapped
-    : 0;
-
-  // The server quote is authoritative when present.
-  const quoteShippingFee = shippingQuote
+  const shipping = quoteAvailable
     ? Number(shippingQuote.shippingFee ?? shippingQuote.fee ?? 0)
     : null;
 
-  const shipping = shippingQuote ? quoteShippingFee : localShipping;
-  const total = Number(
-    shippingQuote?.total ?? subtotal + shipping - discount
-  );
+  
+  const retryTotalNaira =
+    pendingRetryOrder?.total != null
+      ? Number(pendingRetryOrder.total)
+      : null;
 
-  // ── Load shipping config once (unchanged logic, updated parsing)
+  const total = isRetryMode
+    ? retryTotalNaira
+    : quoteAvailable && shippingQuote.total != null
+      ? Number(shippingQuote.total)
+      : null;
+
   useEffect(() => {
     let mounted = true;
 
@@ -319,25 +292,19 @@ export default function CheckoutPage() {
             shippingOptions.freeShippingThreshold ??
             0
         ),
-        domesticCap: Number(shippingOptions.domesticCap ?? 500000),
+        domesticCap: Number(shippingOptions.domesticCap?.default ?? 5000),
         internationalEnabled: Boolean(shippingOptions.internationalEnabled),
         zones,
       });
-      setConfigLoaded(true); // ── FIX: only set true on real success
+      setConfigLoaded(true);
     }
 
     async function run() {
       try {
         const { data } = await shippingApi.getConfig();
         await loadShippingConfig(data);
-      } catch {
-        try {
-          const { data } = await api.get('/admin/settings');
-          await loadShippingConfig(data);
-        } catch (fallbackError) {
-          console.warn('Failed to load shipping configuration:', fallbackError);
-          // configLoaded stays false → submit remains disabled (fail closed)
-        }
+      } catch (err) {
+        console.warn('Failed to load shipping configuration:', err);
       }
     }
 
@@ -347,17 +314,13 @@ export default function CheckoutPage() {
     };
   }, []);
 
-  // ── Meta Pixel – fire once (unchanged)
   useEffect(() => {
     if (pixelFired.current || items.length === 0 || hasPwywItems) return;
     pixelFired.current = true;
     trackInitiateCheckout(items, subtotal, generateEventId());
   }, [items, hasPwywItems, subtotal]);
 
-  // ── Debounced shipping quote (skip useless calls for blocked intl)
   useEffect(() => {
-    // ── FIX: don't even ask the backend for a quote if this order
-    // cannot be shipped — saves a round trip and avoids a bogus response.
     const canQuote =
       hasDeliveryLocation && !isRetryMode && (isNigeria || internationalEnabled);
 
@@ -402,7 +365,6 @@ export default function CheckoutPage() {
     internationalEnabled,
   ]);
 
-  // ── Promo (unchanged)
   const handlePromo = async () => {
     if (!promo.trim()) return;
     setCheckingPromo(true);
@@ -424,7 +386,6 @@ export default function CheckoutPage() {
     }
   };
 
-  // ── Submit (unchanged logic; keep clearCart on successful redirect)
   const onSubmit = async (formData) => {
     if (submittingRef.current) return;
 
@@ -454,18 +415,18 @@ export default function CheckoutPage() {
       toast.error('Calculating shipping fee. Please wait.');
       return;
     }
-    // ── FIX: submit refuses when config never loaded (fail closed)
-    if (!isRetryMode && !configLoaded && !shippingQuote) {
+    if (!isRetryMode && !shippingQuote) {
       toast.error('Loading shipping information. Please wait a moment.');
       return;
     }
-    if (!isRetryMode && !shippingAvailable) {
+    if (!isRetryMode && !quoteAvailable) {
       toast.error(
-        hasDeliveryLocation
-          ? isNigeria
-            ? 'We do not currently deliver to this location'
-            : `We don't currently ship to ${country}`
-          : 'Enter your city or state to calculate shipping'
+        shippingQuote?.message ||
+          (hasDeliveryLocation
+            ? isNigeria
+              ? 'We do not currently deliver to this location'
+              : `We don't currently ship to ${country}`
+            : 'Enter your city or state to calculate shipping')
       );
       return;
     }
@@ -556,21 +517,17 @@ export default function CheckoutPage() {
         );
       }
 
-      // ── FIX: persist guest token so /order-success can authenticate its polls.
       const guestToken = data.guestToken || data.guest_token;
       if (guestToken) {
         try {
           sessionStorage.setItem('guestToken', guestToken);
           localStorage.setItem('guestToken', guestToken);
         } catch {
-          /* storage blocked — success page will land on 'delayed' but order is confirmed server-side */
+          /* storage blocked */
         }
       }
 
-      
-      // Retry mode skips this — the cart holds unrelated items.
       if (!isRetryMode) clearCart();
-
       window.location.assign(checkoutUrl);
     } catch (err) {
       const errorData = err?.response?.data || {};
@@ -616,8 +573,7 @@ export default function CheckoutPage() {
             (lineId && String(item.lineId) === lineId) ||
             (staleProductId &&
               String(item._id) === staleProductId &&
-              (!staleTierId ||
-                String(item.chosenTierId) === staleTierId)) ||
+              (!staleTierId || String(item.chosenTierId) === staleTierId)) ||
             (Number.isInteger(itemIndex) && index === itemIndex)
         );
 
@@ -655,12 +611,11 @@ export default function CheckoutPage() {
       }
     : handleSubmit(onSubmit);
 
-  // ── FIX: submit is disabled until shipping is fully resolved.
   const submitDisabled =
     submitting ||
     shippingQuoteLoading ||
-    (!isRetryMode && !configLoaded && !shippingQuote) ||
-    (!isRetryMode && !shippingAvailable) ||
+    (!isRetryMode && !shippingQuote) ||
+    (!isRetryMode && !quoteAvailable) ||
     hasStaleItems ||
     (gateway === 'bachs' && !bachsCurrencyAllowed) ||
     (isRetryMode && !pendingRetryOrder);
@@ -679,7 +634,6 @@ export default function CheckoutPage() {
           Checkout
         </h1>
 
-        {/* Price change banner (unchanged) */}
         {!hasPwywItems && priceChanges?.priceChanges?.length > 0 && (
           <div
             style={{
@@ -705,7 +659,7 @@ export default function CheckoutPage() {
                 Some prices have changed since you added these items.
               </strong>{' '}
               Your total below already reflects the current, correct prices —
-              nothing you see here differs from what you'll be charged.
+              nothing you see here differs from what you&apos;ll be charged.
               <ul style={{ marginTop: 6, paddingLeft: 18 }}>
                 {priceChanges.priceChanges.map((c) => (
                   <li key={c.name}>
@@ -756,7 +710,6 @@ export default function CheckoutPage() {
               alignItems: 'start',
             }}
           >
-            {/* ── Left column (unchanged) */}
             <div
               style={{
                 display: 'flex',
@@ -764,7 +717,6 @@ export default function CheckoutPage() {
                 gap: 'var(--space-6)',
               }}
             >
-              {/* Contact */}
               <div
                 className="card"
                 style={{ padding: 'var(--space-6)', opacity: isRetryMode ? 0.7 : 1 }}
@@ -835,7 +787,6 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Delivery Address */}
               <div
                 className="card"
                 style={{ padding: 'var(--space-6)', opacity: isRetryMode ? 0.7 : 1 }}
@@ -928,7 +879,6 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Order Items (unchanged) */}
               <div className="card" style={{ padding: 'var(--space-6)' }}>
                 <h2
                   style={{
@@ -1000,7 +950,6 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            {/* ── Right: Summary */}
             <div className="checkout-summary" style={{ position: 'sticky', top: 80 }}>
               <div className="card" style={{ padding: 'var(--space-6)' }}>
                 <h2
@@ -1014,7 +963,6 @@ export default function CheckoutPage() {
                   Order Summary
                 </h2>
 
-                {/* Promo (unchanged) */}
                 {!isRetryMode && (
                   <div style={{ marginBottom: 'var(--space-4)' }}>
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -1077,7 +1025,6 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Totals */}
                 <div
                   style={{
                     display: 'flex',
@@ -1092,8 +1039,7 @@ export default function CheckoutPage() {
                       gateway === 'bachs' ? formatNaira(subtotal) : undefined
                     }
                   />
-                  {/* ── FIX: shipping line is honest about what's happening
-                      instead of falsely showing "Free" on config failure. */}
+
                   <LineItem
                     label="Shipping"
                     value={
@@ -1103,12 +1049,19 @@ export default function CheckoutPage() {
                           ? 'Enter state or city'
                           : shippingQuoteLoading
                             ? 'Calculating...'
-                            : !configLoaded && !shippingQuote
-                              ? 'Loading...'
-                              : !shippingAvailable
-                                ? !isNigeria && !internationalEnabled
-                                  ? 'International shipping not available'
-                                  : `We don't currently ship to ${country}`
+                            : !shippingQuote
+                              ? !configLoaded
+                                ? 'Loading...'
+                                : !shippingAvailable
+                                  ? !isNigeria && !internationalEnabled
+                                    ? 'International shipping not available'
+                                    : `We don't currently ship to ${country}`
+                                  : 'Calculating...'
+                              : !quoteAvailable
+                                ? shippingQuote?.message ||
+                                  (!isNigeria && !internationalEnabled
+                                    ? 'International shipping not available'
+                                    : `We don't currently ship to ${country}`)
                                 : shipping === 0
                                   ? 'Free'
                                   : undefined
@@ -1116,7 +1069,8 @@ export default function CheckoutPage() {
                     priceAmount={
                       !isRetryMode &&
                       !shippingQuoteLoading &&
-                      shippingAvailable &&
+                      quoteAvailable &&
+                      shipping != null &&
                       shipping > 0
                         ? shipping
                         : undefined
@@ -1125,17 +1079,19 @@ export default function CheckoutPage() {
                       gateway === 'bachs' &&
                       !isRetryMode &&
                       !shippingQuoteLoading &&
-                      shippingAvailable &&
+                      quoteAvailable &&
+                      shipping != null &&
                       shipping > 0
                         ? formatNaira(shipping)
                         : undefined
                     }
                     valueColor={
-                      !shippingAvailable || shipping === 0
+                      !quoteAvailable || shipping === 0
                         ? 'var(--muted)'
                         : undefined
                     }
                   />
+
                   {discount > 0 && (
                     <LineItem
                       label={`Promo (${promoData?.discountPercent}%)`}
@@ -1146,16 +1102,22 @@ export default function CheckoutPage() {
                       valueColor="var(--success)"
                     />
                   )}
+
                   <hr className="divider" style={{ margin: '4px 0' }} />
+
                   <LineItem
                     label="Total"
-                    priceAmount={total}
-                    priceText={gateway === 'bachs' ? formatNaira(total) : undefined}
+                    priceAmount={total != null ? total : undefined}
+                    priceText={
+                      gateway === 'bachs' && total != null
+                        ? formatNaira(total)
+                        : undefined
+                    }
+                    value={total == null && !isRetryMode ? '—' : undefined}
                     bold
                   />
                 </div>
 
-                {/* Gateway (unchanged) */}
                 <div style={{ marginTop: 'var(--space-5)' }}>
                   <div
                     style={{
@@ -1193,7 +1155,6 @@ export default function CheckoutPage() {
                   )}
                 </div>
 
-                {/* Push notifications (unchanged) */}
                 {isPushConfigured() && (
                   <div className="checkout-notify">
                     <label className="checkout-notify-label">
@@ -1219,7 +1180,6 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Submit (unchanged UI, new disable logic above) */}
                 <button
                   type="submit"
                   className="btn btn-primary btn-full btn-lg"
@@ -1243,12 +1203,16 @@ export default function CheckoutPage() {
                   ) : (
                     <>
                       Pay{' '}
-                      <PriceTag
-                        {...checkoutPriceProps(total)}
-                        size="md"
-                        strike={false}
-                        color="#ffffff"
-                      />
+                      {total != null ? (
+                        <PriceTag
+                          {...checkoutPriceProps(total)}
+                          size="md"
+                          strike={false}
+                          color="#ffffff"
+                        />
+                      ) : (
+                        '…'
+                      )}
                       <ArrowRight size={18} strokeWidth={2.2} />
                     </>
                   )}
